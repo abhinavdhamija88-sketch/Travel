@@ -14,7 +14,7 @@ export function createHandler(provider=service){
    let input;try{input=JSON.parse(text);}catch{return reply(400,{error:'Invalid search request.'});}
    const query=validateLiveQuery(input);
    // One destination per invocation keeps slow regional scans out of function timeouts.
-   if(query.targets.length!==1)return reply(400,{error:'Search one destination per request. The website combines regional results automatically.'});
+   if(query.targets.length!==1)return reply(400,{error:'Search one Asian city per request. The website combines regional results automatically.'});
    return reply(200,await provider.search(input));
   }catch(e){return reply(e instanceof FlightError?e.status:500,{error:e instanceof FlightError?e.message:'The flight search could not be completed.'});}
  };

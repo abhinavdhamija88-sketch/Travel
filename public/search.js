@@ -22,6 +22,21 @@ export const origins = [
 const offsets={JFK:-140,EWR:-80,LGA:90,CLT:130,MIA:160,ORD:-20,PHL:70,IAD:40,BOS:0,RDU:150};
 const cabins={business:'business',premium:'premiumeconomy',economy:'economy'};
 const regions=['Asia','East Asia','Southeast Asia','South Asia'];
+
+export function getSearchPlan({origin,destination='Asia'}){
+ const usOrigin=origins.some(o=>o.code===origin),usDestination=origins.some(o=>o.code===destination);
+ const asian=code=>regions.includes(code)||cities.some(c=>c.code===code);
+ let reverse,selection,usCode;
+ if(usOrigin&&asian(destination)){reverse=false;selection=destination;usCode=origin;}
+ else if(asian(origin)&&usDestination){reverse=true;selection=origin;usCode=destination;}
+ else throw new Error('Choose a listed US city on one side and an Asian city or region on the other.');
+ const targets=cities.filter(c=>selection==='Asia'||c.region===selection||c.code===selection);
+ return {reverse,usCode,targets,single:cities.some(c=>c.code===selection)};
+}
+export function expandSearchQueries(query){
+ const plan=getSearchPlan(query);
+ return plan.targets.map(city=>({...query,origin:plan.reverse?city.code:plan.usCode,destination:plan.reverse?plan.usCode:city.code}));
+}
 export function validDate(value){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(value||''))return false;
  const d=new Date(value+'T00:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===value;
@@ -35,29 +50,29 @@ function quote(origin,code,date,cabin){
  const variation=(n+origin.charCodeAt(0)+code.charCodeAt(0))%17;
  const multiplier=cabin==='economy'?.34:cabin==='premium'?.62:1;
  const price=Math.round(((intra?base*.3:base)+(offsets[origin]||offsets[code]||0)+variation*23)*multiplier);
- const stops=intra?0:origin==='LGA'?1:(target||source)?.stops??1;
+ const stops=intra?0:origin==='LGA'||code==='LGA'?1:(target||source)?.stops??1;
  return {origin,code,date,cabin,price,stops,hours:intra?5:(target||source)?.hours||12,airline:(target||source)?.airline||'Sample airline'};
 }
 export function searchFares({origin='NYC',destination='Asia',date,returnDate,trip='oneway',onward=[],cabin='business',nonstop=false,budget=Infinity,sort='price'}){
- if(!origins.some(o=>o.code===origin))throw new Error('Choose a departure city.');
+ const plan=getSearchPlan({origin,destination});
  if(!Object.hasOwn(cabins,cabin))throw new Error('Choose a cabin.');
  if(!['oneway','roundtrip','multicity'].includes(trip))throw new Error('Choose a trip type.');
  if(!validDate(date))throw new Error('Choose a valid departure date.');
- if(!regions.includes(destination)&&!cities.some(c=>c.code===destination))throw new Error('Choose a destination.');
  if(trip==='roundtrip'&&(!validDate(returnDate)||returnDate<date))throw new Error('Choose a return date on or after departure.');
  if(trip==='multicity'){
   if(!Array.isArray(onward)||onward.length<1||onward.length>5)throw new Error('Add between two and six flights for a multi-city trip.');
   let previous=date;
   for(const leg of onward){if(!airport(leg.code)&&leg.code!=='HOME')throw new Error('Choose a destination for every flight.');if(!validDate(leg.date)||leg.date<previous)throw new Error('Flight dates must be in order.');previous=leg.date;}
  }
- const airports=origin==='NYC'?['JFK','EWR','LGA']:[origin];
- const candidates=cities.filter(c=>destination==='Asia'||c.region===destination||c.code===destination);
+ const airports=plan.usCode==='NYC'?['JFK','EWR','LGA']:[plan.usCode];
+ const candidates=plan.targets;
  const results=candidates.flatMap(c=>{
- const options=airports.flatMap(departure=>{
-  const legs=[quote(departure,c.code,date,cabin)];
-  if(trip==='roundtrip')legs.push(quote(c.code,departure,returnDate,cabin));
+ const options=airports.flatMap(usAirport=>{
+  const departure=plan.reverse?c.code:usAirport,arrival=plan.reverse?usAirport:c.code;
+  const legs=[quote(departure,arrival,date,cabin)];
+  if(trip==='roundtrip')legs.push(quote(arrival,departure,returnDate,cabin));
   if(trip==='multicity')for(const next of onward){const from=legs.at(-1).code,to=next.code==='HOME'?departure:next.code;if(from===to)return [];legs.push(quote(from,to,next.date,cabin));}
-  return [{...c,origin:departure,date,cabin,trip,returnDate,legs,price:legs.reduce((n,l)=>n+l.price,0),hours:legs.reduce((n,l)=>n+l.hours,0),stops:legs.reduce((n,l)=>n+l.stops,0)}];
+  return [{...c,origin:departure,code:arrival,comparisonCode:c.code,reverse:plan.reverse,date,cabin,trip,returnDate,legs,price:legs.reduce((n,l)=>n+l.price,0),hours:legs.reduce((n,l)=>n+l.hours,0),stops:legs.reduce((n,l)=>n+l.stops,0)}];
  }).filter(f=>f.price<=budget&&(!nonstop||f.legs.every(l=>l.stops===0)));
  options.sort((a,b)=>a.price-b.price);return options.length?[options[0]]:[];
  });
@@ -72,9 +87,10 @@ export function skyscannerUrl({origin,code,date,cabin,returnDate}){
  url.search=new URLSearchParams({adultsv2:'1',cabinclass:cabins[cabin],rtn:returnDate?'1':'0',currency:'USD',outboundaltsenabled:'false',inboundaltsenabled:'false'}).toString();return url.href;
 }
 
-export function selectLiveFares(results,{destination='Asia',includeMixed=false,nonstop=false,budget=Infinity,sort='price'}={}){
- const single=cities.some(c=>c.code===destination);
- const fares=results.filter(f=>!single||f.code===destination).flatMap(group=>{
+export function selectLiveFares(results,{origin,destination='Asia',includeMixed=false,nonstop=false,budget=Infinity,sort='price'}={}){
+ const reverse=origins.some(o=>o.code===destination),selection=reverse?origin:destination;
+ const single=cities.some(c=>c.code===selection);
+ const fares=results.filter(f=>!single||(f.comparisonCode||f.code)===selection).flatMap(group=>{
   const options=(Array.isArray(group.options)?group.options:[group,...(group.nonstopAlternative?[group.nonstopAlternative]:[])])
    .filter(f=>(includeMixed||!f.mixedCabin)&&(!nonstop||f.stops===0)&&f.price<=budget).sort((a,b)=>a.price-b.price);
   if(single)return options.map(f=>({...f,optionCount:options.length}));

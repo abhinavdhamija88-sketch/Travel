@@ -59,3 +59,9 @@ A secure SerpApi key and hosting account/deployment are still needed. After conn
 For a single-city search, Refresh prices sets SerpApi no_cache=true and bypasses our own cache. It spends a new provider request and does not guarantee complete Google Flights coverage. Checked time uses the provider's created_at when available; fetchedAt records when our server read the response.
 
 Download search report exports only the normalized results, requested airports/date/cabin, sanitized request parameters (never the api_key), provider search ID, timestamps, and per-offer eligibility audit. The audit records prices, segment airlines/airports/classes, and reasons for exclusion, allowing a reported cheaper itinerary to be located or confirmed absent from the provider response. Raw provider responses and secret values are never exported. Report downloads make no additional provider requests.
+
+## Reverse routes
+
+The swap button exchanges the US and Asian sides while preserving the exact selected city/region, date, cabin, and trip type. In Live mode it clears the previous displayed route and asks the user to Explore fares; swapping alone never spends provider credits.
+
+For Asia → BOS, NYC, or another listed US city, the client expands the same 12 Asian airports (or selected region subset) into separate source-airport queries, two concurrently. NYC is a grouped arrival query over JFK, EWR, and LGA; actual arrival airports are validated and shown on each itinerary and external link. Regional reverse results compare the lowest eligible returned fare per Asian origin. A specific Asian origin shows its individual returned flight options; View flight options switches the origin selector without additional API requests. Sample mode also supports reversed round-trip and multi-city itineraries. The provider coverage limitations remain unchanged.

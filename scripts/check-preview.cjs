@@ -27,6 +27,8 @@ const assert=require('node:assert/strict');
    await view.locator('#return-date').fill('2026-12-01');await view.locator('.search-button').click();assert.match(await view.locator('#error').innerText(),/Search not updated.*return date/);
    await view.locator('#trip').selectOption('multicity');await view.locator('#destination').selectOption('SGN');await view.locator('.leg-to').selectOption('SIN');await view.locator('.leg-date').fill('2026-12-24');await view.locator('.search-button').click();assert.equal(await view.locator('.card').count(),1);await view.locator('.multi-check').click();
    const legs=await view.locator('dialog a').evaluateAll(as=>as.map(a=>a.href));assert.match(legs[0],/bos\/sgn\/261221/);assert.match(legs[1],/sgn\/sin\/261224/);
+   await view.locator('#close').click();await view.locator('#trip').selectOption('oneway');await view.locator('#swap-route').click();assert.equal(await view.locator('#origin').inputValue(),'SGN');assert.equal(await view.locator('#destination').inputValue(),'BOS');await view.locator('.search-button').click();assert.equal(await view.locator('.card').count(),1);assert.match(await view.locator('.card a').getAttribute('href'),/sgn\/bos\/261221/);
+   await view.locator('#swap-route').click();assert.equal(await view.locator('#origin').inputValue(),'BOS');assert.equal(await view.locator('#destination').inputValue(),'SGN');
    assert.deepEqual(errors,[]);await page.close();
    console.log(`PASS: ${sandboxed?'sandboxed preview (no allow-forms)':'standalone page'} refreshes prices, dates, and links after click/Enter; roundtrip and multi-city work.`);
   }
