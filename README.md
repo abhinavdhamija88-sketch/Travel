@@ -53,3 +53,9 @@ Explore fares uses a click handler because sandboxed previews may block form sub
 ## Outstanding external prerequisites
 
 A secure SerpApi key and hosting account/deployment are still needed. After connection, first run one destination/date and verify the real response fields, cabin classes, price, airport grouping, and Google Flights result before expanding to a full scan. SerpApi query/schema compatibility and live price accuracy have not yet been verified from this machine.
+
+## Investigating missing cheaper fares
+
+For a single-city search, Refresh prices sets SerpApi no_cache=true and bypasses our own cache. It spends a new provider request and does not guarantee complete Google Flights coverage. Checked time uses the provider's created_at when available; fetchedAt records when our server read the response.
+
+Download search report exports only the normalized results, requested airports/date/cabin, sanitized request parameters (never the api_key), provider search ID, timestamps, and per-offer eligibility audit. The audit records prices, segment airlines/airports/classes, and reasons for exclusion, allowing a reported cheaper itinerary to be located or confirmed absent from the provider response. Raw provider responses and secret values are never exported. Report downloads make no additional provider requests.

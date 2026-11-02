@@ -74,3 +74,17 @@ test('BOS–ATL–ICN–SGN domestic premium plus international business remains
  assert.equal(result.fare.price,2269);assert.equal(result.fare.stops,2);assert.equal(result.fare.legs[0].segments.length,3);assert.equal(result.fare.mixedCabin,false);assert.equal(result.fare.options.length,2);assert.equal(result.cabinExcluded,0);
  }
 });
+test('single-city refresh bypasses both caches and next ordinary search reuses refreshed result',async()=>{
+ let calls=0;const seen=[];const service=createFlightService({apiKey:'private-test-key',now:clock,request:async url=>{seen.push(new URL(url));calls++;return response({best_flights:[offer(calls===1?4475:2269)],search_metadata:{id:'non-secret-search-id',created_at:'2026-11-02 11:00:00 UTC'}});}});
+ const old=await service.search(input);assert.equal(old.results[0].price,4475);assert.equal(old.results[0].checkedAt,'2026-11-02T11:00:00.000Z');assert.equal(old.coverage[0].fetchedAt,'2026-11-02T12:00:00.000Z');
+ const fresh=await service.search({...input,refresh:true});assert.equal(calls,2);assert.equal(seen[1].searchParams.get('no_cache'),'true');assert.equal(fresh.results[0].price,2269);assert.equal(fresh.coverage[0].refreshed,true);
+ const reused=await service.search(input);assert.equal(calls,2);assert.equal(reused.results[0].price,2269);assert.equal(reused.coverage[0].cached,true);
+ assert.ok(!JSON.stringify(fresh).includes('private-test-key'));assert.equal(fresh.coverage[0].providerParameters.sort_by,'2');
+ assert.throws(()=>validateLiveQuery({...input,destination:'Asia',refresh:true},clock()),/single city/);
+});
+test('audit explains exactly why each omitted offer was excluded without copying raw provider fields',()=>{
+ const query=validateLiveQuery(input,clock()),city=cities.find(c=>c.code==='SGN');
+ const unknown=offer(2269,{cabin:''});const wrongDate=offer(2100);wrongDate.flights[0].departure_airport.time='2026-12-20 10:00';const missingDuration=offer(2200);delete missingDuration.total_duration;
+ const normalized=normalizeFlights({best_flights:[offer(4475),unknown,wrongDate,missingDuration],api_key:'never-expose'},query,city,clock().toISOString());
+ assert.deepEqual(normalized.diagnostics.offerAudit.map(o=>o.reason),[null,'unverified_segment_cabin','departure_date_does_not_match_search','missing_total_duration']);assert.equal(normalized.diagnostics.offerAudit[1].price,2269);assert.equal(normalized.diagnostics.offerAudit[1].segments[0].origin,'BOS');assert.ok(!JSON.stringify(normalized).includes('never-expose'));
+});

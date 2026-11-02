@@ -41,6 +41,8 @@ function showDetails(f){
 function render(){
  try{
  displayed=liveMode()?selectLiveFares(liveResults,{destination:query.destination,includeMixed:$('mixed-cabins').checked,nonstop:$('nonstop').checked,budget:Number($('budget').value),sort:$('sort').value}):searchFares({...query,nonstop:$('nonstop').checked,budget:Number($('budget').value),sort:$('sort').value});
+ $('download-report').hidden=!liveMode()||!liveReport;
+ $('refresh-prices').hidden=!liveMode()||!liveReport||!cities.some(c=>c.code===query.destination);
  displayed.sort((a,b)=>$('sort').value==='highest'?b.price-a.price:$('sort').value==='duration'?a.hours-b.hours:a.price-b.price);
 
  $('error').textContent='';
@@ -51,7 +53,7 @@ function render(){
  if(liveMode()&&liveReport){
   const coverage=document.createElement('div');coverage.className='coverage-note';
   const failed=liveReport.coverage.filter(c=>c.status==='error'),empty=liveReport.coverage.filter(c=>c.status==='no_matching_fare');
-  coverage.textContent=`${liveReport.coverage.length-failed.length} of ${liveReport.coverage.length} destination searches completed. ${failed.length?'Incomplete searches: '+failed.map(c=>c.city+': '+c.message).join('; ')+'. ':''}${empty.length?'No verified requested-cabin fare returned for '+empty.map(c=>c.city).join(', ')+'. ':''}Only the provider’s returned offers are compared. Checked times appear in trip details; cached results may be up to 15 minutes old.`;
+  coverage.textContent=`${liveReport.coverage.length-failed.length} of ${liveReport.coverage.length} destination searches completed. ${failed.length?'Incomplete searches: '+failed.map(c=>c.city+': '+c.message).join('; ')+'. ':''}${empty.length?'No verified requested-cabin fare returned for '+empty.map(c=>c.city).join(', ')+'. ':''}Only the provider’s returned offers are compared. Checked times appear in trip details; our cache lasts 15 minutes and the provider may also cache prices. Refresh prices bypasses both caches for a single city.`;
   const mixed=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.mixed||0),0);
   const unknown=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.unknownCabin||0),0);
   const mixedPrices=liveReport.coverage.flatMap(c=>c.diagnostics?.lowestMixedPrice!=null?[c.diagnostics.lowestMixedPrice]:[]);
@@ -59,6 +61,8 @@ function render(){
   const eligibleOffers=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.eligibleOffers||0),0);
   const rawPrices=liveReport.coverage.flatMap(c=>c.diagnostics?.lowestReturnedPrice!=null?[c.diagnostics.lowestReturnedPrice]:[]);
   if(rawOffers)coverage.textContent+=` Provider returned ${rawOffers} offers; ${eligibleOffers} distinct offers have verified requested cabins.${rawPrices.length?' Lowest price before cabin and itinerary validation: '+money(Math.min(...rawPrices))+'.':''}`;
+  const excludedReasons={};for(const c of liveReport.coverage)for(const [reason,count] of Object.entries(c.diagnostics?.excludedByReason||{}))excludedReasons[reason]=(excludedReasons[reason]||0)+count;
+  if(Object.keys(excludedReasons).length)coverage.textContent+=' Exclusion details are available in Download search report.';
   if(mixed)coverage.textContent+=` ${mixed} mixed-cabin offers ${$('mixed-cabins').checked?'included':'hidden'}${mixedPrices.length?' (from '+money(Math.min(...mixedPrices))+')':''}. ${$('mixed-cabins').checked?'Review the cabin on each segment.':'Enable Include mixed cabins to compare them.'}`;
   if(unknown)coverage.textContent+=` ${unknown} offers excluded because their segment cabins could not be verified.`;
   coverage.textContent+=cities.some(c=>c.code===query.destination)?' Showing the returned flight options for this city.':' Showing the lowest eligible returned fare per destination. Use View flight options to compare alternatives.';
@@ -67,12 +71,12 @@ function render(){
 
  }catch(e){$('error').textContent=e.message;}
 }
-async function runSearch(){
+async function runSearch({refresh=false}={}){
  if(busy)return;
  if(!$('search').reportValidity()){
   $('error').textContent='Search not updated. Complete the highlighted travel details.';return;
  }
- const next=readQuery();
+ const next={...readQuery(),refresh};
  if(!liveMode()){
   try{searchFares(next);query=next;render();$('search-status').textContent=`Sample results updated for ${prettyDate(query.date)}${query.trip==='roundtrip'?' – '+prettyDate(query.returnDate):''}. Skyscanner links now use these travel dates.`;}catch(e){$('error').textContent='Search not updated. '+e.message;}
   return;
@@ -80,7 +84,7 @@ async function runSearch(){
  query=next;liveResults=[];liveReport=null;render();
  if(offlineDemo){$('error').textContent='This downloaded demo cannot retrieve live prices. Use the hosted website with a connected SerpApi key.';return;}
  if(next.trip!=='oneway'){$('error').textContent='Live pricing currently supports One way. Round trip and Multi-city are available in Sample demo mode.';return;}
- busy=true;document.querySelector('.search-button').disabled=true;$('data-source').disabled=true;
+ busy=true;$('download-report').disabled=true;$('refresh-prices').disabled=true;document.querySelector('.search-button').disabled=true;$('data-source').disabled=true;
  $('search-status').textContent='Checking Google Flights. This can take a minute; no sample fares will be substituted.';
  try{
   const statusResponse=await fetch('/api/status');
@@ -114,7 +118,7 @@ async function runSearch(){
   liveReport=body;liveResults=body.results;render();
   $('search-status').textContent=`${body.partial?'Partial search completed':'Search completed'} for ${prettyDate(query.date)}. ${displayed.length} displayed options across ${body.results.length} returned destinations. Skyscanner links use this travel date.`;
  }catch(e){$('search-status').textContent='Search did not complete. No live prices are displayed.';$('error').textContent=e.message;}
- finally{busy=false;document.querySelector('.search-button').disabled=false;$('data-source').disabled=false;}
+ finally{busy=false;$('download-report').disabled=false;$('refresh-prices').disabled=false;document.querySelector('.search-button').disabled=false;$('data-source').disabled=false;}
 }
 function updateMode(){
  liveResults=[];liveReport=null;query=readQuery();$('mixed-field').hidden=!liveMode();render();
@@ -123,6 +127,13 @@ function updateMode(){
  if(liveMode()&&!offlineDemo)fetch('/api/status').then(r=>r.json()).then(s=>{if(liveMode()&&!s.configured)$('search-status').textContent='Live pricing is not connected yet. Add the SerpApi key in the hosting service to enable searches.';}).catch(()=>{$('error').textContent='The live pricing server could not be reached.';});
 }
 $('data-source').addEventListener('change',updateMode);
+$('refresh-prices').addEventListener('click',()=>runSearch({refresh:true}));
+$('download-report').addEventListener('click',()=>{
+ if(!liveReport)return;
+ const report={version:1,downloadedAt:new Date().toISOString(),search:{origin:query.origin,destination:query.destination,date:query.date,cabin:query.cabin,trip:query.trip},coverage:liveReport.coverage,results:liveReport.results};
+ const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`atlas-search-${query.origin}-${query.destination}-${query.date}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 // Use a regular button: preview frames may disable native form submissions.
 document.querySelector('.search-button').addEventListener('click',runSearch);
 $('search').addEventListener('submit',e=>{e.preventDefault();runSearch();});

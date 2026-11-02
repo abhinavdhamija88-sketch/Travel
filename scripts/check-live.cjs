@@ -6,9 +6,9 @@ const path=require('node:path');
 (async()=>{
  const {createApp}=await import(pathToFileURL(path.resolve('server.js')));
  const {createFlightService}=await import(pathToFileURL(path.resolve('lib/flights.js')));
- let calls=0;
+ let calls=0,lastParams;
  const service=createFlightService({apiKey:'test-secret-not-a-real-key',dailyLimit:100,now:()=>new Date('2026-11-02T12:00:00Z'),request:async url=>{
-  calls++;const date=url.searchParams.get('outbound_date'),code=url.searchParams.get('arrival_id'),origin=url.searchParams.get('departure_id').split(',')[0];
+  calls++;lastParams=new URL(url);const date=url.searchParams.get('outbound_date'),code=url.searchParams.get('arrival_id'),origin=url.searchParams.get('departure_id').split(',')[0];
   const segment=(from,to)=>({departure_airport:{id:from,time:date+' 10:00'},arrival_airport:{id:to,time:date+' 22:00'},airline:'Fixture Airline',flight_number:'FX 1',travel_class:'Business'});
   return {ok:true,json:async()=>({best_flights:[{price:2000+Number(date.slice(-2)),total_duration:1100,flights:[segment(origin,'DOH'),segment('DOH',code)]}],other_flights:[{price:3000,total_duration:900,flights:[segment(origin,code)]}]})};
  }});
@@ -26,7 +26,9 @@ const path=require('node:path');
   await page.locator('.options-button').first().click();assert.equal(await page.locator('.card').count(),2);assert.equal(calls,24);assert.match(await page.locator('#search-status').innerText(),/No additional provider requests/);
   await page.selectOption('#sort','highest');assert.match(await page.locator('.card strong').first().innerText(),/3,000/);
   await page.selectOption('#sort','price');assert.match(await page.locator('.card strong').first().innerText(),/2,020/);
-  await page.selectOption('#trip','roundtrip');await page.click('.search-button');assert.match(await page.locator('#error').innerText(),/supports One way/);assert.equal(await page.locator('.card').count(),0);assert.equal(calls,24);
+  await page.click('#refresh-prices');await page.waitForFunction(()=>document.getElementById('search-status').textContent.includes('Search completed'));assert.equal(calls,25);assert.equal(lastParams.searchParams.get('no_cache'),'true');
+  const downloadPromise=page.waitForEvent('download');await page.click('#download-report');const download=await downloadPromise;const contents=require('node:fs').readFileSync(await download.path(),'utf8');const report=JSON.parse(contents);assert.equal(report.coverage.length,1);assert.equal(report.coverage[0].refreshed,true);assert.equal(report.coverage[0].providerParameters.no_cache,'true');assert.ok(report.coverage[0].diagnostics.offerAudit.length>0);assert.ok(!contents.includes('test-secret-not-a-real-key'));
+  await page.selectOption('#trip','roundtrip');await page.click('.search-button');assert.match(await page.locator('#error').innerText(),/supports One way/);assert.equal(await page.locator('.card').count(),0);assert.equal(calls,25);
   await page.selectOption('#data-source','demo');assert.equal(await page.locator('.card').count(),1);assert.match(await page.locator('#mode-note').innerText(),/DEMO MODE/);
   assert.deepEqual(errors,[]);console.log('PASS: browser-to-backend integration with simulated provider: no automatic charges; 12-city results, date updates, nonstop alternatives, caching, explicit live-only limits, and demo separation.');
  }finally{await browser.close();server.closeAllConnections();server.close();}
