@@ -25,7 +25,7 @@ $('swap-route').addEventListener('click',()=>{
  const from=$('origin').value,to=$('destination').value;
  reverseDirection=!reverseDirection;routeOptions(to,from);
  liveResults=[];liveReport=null;query=readQuery();render();
- $('search-status').textContent='Route swapped. Click Explore fares to search in this direction. Departure date and cabin are unchanged.';
+ $('search-status').textContent='Route swapped. Click Search flights to search in this direction. Departure date and cabin are unchanged.';
 });
 function addLeg(){
  if($('legs').children.length>=5)return;
@@ -60,28 +60,29 @@ function render(){
  displayed.sort((a,b)=>$('sort').value==='highest'?b.price-a.price:$('sort').value==='duration'?a.hours-b.hours:a.price-b.price);
 
  $('error').textContent='';
- $('results-title').textContent=getSearchPlan(query).reverse?'Where could you fly from?':'Your next stop could be…';
+ $('results-title').textContent=getSearchPlan(query).reverse?'Compare departure cities':'Flight results';
  const dates=[query.date,...(query.trip==='roundtrip'?[query.returnDate]:query.trip==='multicity'?query.onward.map(l=>l.date):[])].map(prettyDate).join(' · ');
  $('summary').textContent=`${airportNames[query.origin]||query.origin} → ${airportNames[query.destination]||query.destination} · ${dates} · ${cabinNames[query.cabin]} · ${tripNames[query.trip]}`;
  $('count').textContent=`${displayed.length} ${displayed.length===1?'trip':'trips'}`;
- $('results').innerHTML=displayed.length?displayed.map((f,i)=>`<article class="card"><div class="city-art theme-${f.comparisonCode||f.code}"><span class="region-label">${f.region}</span><div class="sun"></div><div class="mountain"></div><div class="skyline ${i%2?'arch':'temple'}"><i></i><i></i><i></i><i></i><i></i></div><span class="airport">${f.reverse?f.origin:f.code}</span>${i===0&&$('sort').value==='price'?`<span class="best">${liveMode()?'LOWEST RETURNED FARE':'LOWEST SAMPLE FARE'}</span>`:''}</div><div class="card-body"><div class="city-line"><div><h3>${f.city}</h3><p>${f.country}${f.reverse?' · Departing here':f.trip==='multicity'?' · First stop':''}</p></div><span class="route-code">${f.origin} → ${f.code}</span></div><div class="flight-meta"><span>${prettyDate(f.date)}${f.trip==='roundtrip'?' – '+prettyDate(f.returnDate):''} · ${tripNames[f.trip]}</span><span>${f.legs.length} ${f.legs.length===1?'flight':'flights'} · ${f.stops} connections total${liveMode()?' · '+Math.floor(f.hours)+'h '+Math.round(f.hours%1*60)+'m':''}</span>${liveMode()?`<span class="fare-airline">${escapeText(f.airline)}</span><span class="cabin-badge ${f.mixedCabin?'mixed':''}">${f.mixedCabin?'Mixed cabins · review each segment':(f.cabin==='business'?'Business / first':cabinNames[f.cabin])+' · all segments'}</span>`:''}</div><div class="card-bottom"><div><span class="from">${f.trip==='oneway'?'ONE WAY':'TRIP TOTAL'} · ${liveMode()?'USD':'SAMPLE'}</span><strong>${money(f.price)}</strong></div><button data-index="${i}" aria-label="View trip to ${f.city}">→</button></div>${liveMode()&&!singleRoute()&&f.optionCount>1?`<button class="options-button" data-options-code="${f.comparisonCode||f.code}">View ${f.optionCount} flight options</button>`:''}${f.trip==='multicity'?`<button class="skyscanner-link multi-check" data-index="${i}">Check flights on Skyscanner →</button>`:`<a class="skyscanner-link" href="${link(f)}" target="_blank" rel="noopener noreferrer">Check on Skyscanner →</a>`}</div></article>`).join(''):`<div class="empty"><h3>${liveMode()&&!liveReport?'Ready to check Google Flights':liveMode()?'No matching returned fares':'No matching sample trips'}</h3><p>${liveMode()&&!liveReport?'Choose your route and date, then click Explore fares. No sample prices are shown in Live mode.':'Try a higher budget, allow connections, or choose a different destination.'}</p>${liveMode()&&!liveReport?'':'<button class="reset-filters" type="button">Clear price and nonstop filters</button>'}</div>`;
+ $('results').innerHTML=displayed.length?displayed.map((f,i)=>`<article class="card"><div class="city-art theme-${f.comparisonCode||f.code}" aria-hidden="true"><div class="sun"></div><div class="skyline ${i%2?'arch':'temple'}"><i></i><i></i><i></i><i></i><i></i></div></div><div class="card-body"><div class="city-line"><div><h3>${f.city}</h3><p>${f.country}${f.reverse?' · Departure city':f.trip==='multicity'?' · First stop':''}</p></div><span class="route-code">${f.origin} → ${f.code}</span></div><div class="flight-meta"><span>${prettyDate(f.date)}${f.trip==='roundtrip'?' – '+prettyDate(f.returnDate):''} · ${tripNames[f.trip]}</span><span>${f.stops===0?'Nonstop':f.stops+' connection'+(f.stops===1?'':'s')}${liveMode()?' · '+Math.floor(f.hours)+'h '+Math.round(f.hours%1*60)+'m':''}</span>${liveMode()?`<span class="fare-airline">${escapeText(f.airline)}</span><span class="cabin-badge ${f.mixedCabin?'mixed':''}">${f.mixedCabin?'Mixed cabins':(f.cabin==='business'?'Business / first':cabinNames[f.cabin])+' · all segments'}</span>`:''}</div><div class="card-bottom"><div><span class="from">${liveMode()?'USD · per adult':'SAMPLE FARE'}</span><strong>${money(f.price)}</strong></div><button data-index="${i}" aria-label="View flight details for ${f.origin} to ${f.code}" title="Flight details">→</button></div><div class="row-actions">${liveMode()&&!singleRoute()&&f.optionCount>1?`<button class="options-button" data-options-code="${f.comparisonCode||f.code}">${f.optionCount} flight options</button>`:''}${f.trip==='multicity'?`<button class="skyscanner-link multi-check" data-index="${i}">Check legs on Skyscanner →</button>`:`<a class="skyscanner-link" href="${link(f)}" target="_blank" rel="noopener noreferrer">Check on Skyscanner →</a>`}</div></div></article>`).join(''):`<div class="empty"><h3>${liveMode()&&!liveReport?'Enter a route to search':liveMode()?'No matching returned fares':'No matching sample trips'}</h3><p>${liveMode()&&!liveReport?'Choose airports, a date, and a cabin, then select Search flights.':'Try a higher budget, allow connections, or choose a different city.'}</p>${liveMode()&&!liveReport?'':'<button class="reset-filters" type="button">Clear price and nonstop filters</button>'}</div>`;
  if(liveMode()&&liveReport){
-  const coverage=document.createElement('div');coverage.className='coverage-note';
+  const coverage=document.createElement('details');coverage.className='coverage-note';
+  const coverageBody=document.createElement('p');
   const failed=liveReport.coverage.filter(c=>c.status==='error'),empty=liveReport.coverage.filter(c=>c.status==='no_matching_fare');
-  coverage.textContent=`${liveReport.coverage.length-failed.length} of ${liveReport.coverage.length} city searches completed. ${failed.length?'Incomplete searches: '+failed.map(c=>c.city+': '+c.message).join('; ')+'. ':''}${empty.length?'No verified requested-cabin fare returned for '+empty.map(c=>c.city).join(', ')+'. ':''}Only the provider’s returned offers are compared. Checked times appear in trip details; our cache lasts 15 minutes and the provider may also cache prices. Refresh prices bypasses both caches for a single city.`;
+  coverageBody.textContent=`${liveReport.coverage.length-failed.length} of ${liveReport.coverage.length} city searches completed. ${failed.length?'Incomplete searches: '+failed.map(c=>c.city+': '+c.message).join('; ')+'. ':''}${empty.length?'No verified requested-cabin fare returned for '+empty.map(c=>c.city).join(', ')+'. ':''}Only the provider’s returned offers are compared. Checked times appear in trip details; our cache lasts 15 minutes and the provider may also cache prices. Refresh prices bypasses both caches for a single city.`;
   const mixed=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.mixed||0),0);
   const unknown=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.unknownCabin||0),0);
   const mixedPrices=liveReport.coverage.flatMap(c=>c.diagnostics?.lowestMixedPrice!=null?[c.diagnostics.lowestMixedPrice]:[]);
   const rawOffers=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.returnedOffers||0),0);
   const eligibleOffers=liveReport.coverage.reduce((n,c)=>n+(c.diagnostics?.eligibleOffers||0),0);
   const rawPrices=liveReport.coverage.flatMap(c=>c.diagnostics?.lowestReturnedPrice!=null?[c.diagnostics.lowestReturnedPrice]:[]);
-  if(rawOffers)coverage.textContent+=` Provider returned ${rawOffers} offers; ${eligibleOffers} distinct offers have verified requested cabins.${rawPrices.length?' Lowest price before cabin and itinerary validation: '+money(Math.min(...rawPrices))+'.':''}`;
+  if(rawOffers)coverageBody.textContent+=` Provider returned ${rawOffers} offers; ${eligibleOffers} distinct offers have verified requested cabins.${rawPrices.length?' Lowest price before cabin and itinerary validation: '+money(Math.min(...rawPrices))+'.':''}`;
   const excludedReasons={};for(const c of liveReport.coverage)for(const [reason,count] of Object.entries(c.diagnostics?.excludedByReason||{}))excludedReasons[reason]=(excludedReasons[reason]||0)+count;
-  if(Object.keys(excludedReasons).length)coverage.textContent+=' Exclusion details are available in Download search report.';
-  if(mixed)coverage.textContent+=` ${mixed} mixed-cabin offers ${$('mixed-cabins').checked?'included':'hidden'}${mixedPrices.length?' (from '+money(Math.min(...mixedPrices))+')':''}. ${$('mixed-cabins').checked?'Review the cabin on each segment.':'Enable Include mixed cabins to compare them.'}`;
-  if(unknown)coverage.textContent+=` ${unknown} offers excluded because their segment cabins could not be verified.`;
-  coverage.textContent+=singleRoute()?' Showing the returned flight options for this city.':' Showing the lowest eligible returned fare per Asian city. Use View flight options to compare alternatives.';
-  $('results').prepend(coverage);
+  if(Object.keys(excludedReasons).length)coverageBody.textContent+=' Exclusion details are available in Download search report.';
+  if(mixed)coverageBody.textContent+=` ${mixed} mixed-cabin offers ${$('mixed-cabins').checked?'included':'hidden'}${mixedPrices.length?' (from '+money(Math.min(...mixedPrices))+')':''}. ${$('mixed-cabins').checked?'Review the cabin on each segment.':'Enable Include mixed cabins to compare them.'}`;
+  if(unknown)coverageBody.textContent+=` ${unknown} offers excluded because their segment cabins could not be verified.`;
+  coverageBody.textContent+=singleRoute()?' Showing the returned flight options for this city.':' Showing the lowest eligible returned fare per Asian city. Use View flight options to compare alternatives.';
+  const coverageTitle=document.createElement('summary');coverageTitle.textContent=`${liveReport.coverage.length-failed.length} of ${liveReport.coverage.length} city searches completed${failed.length?' · Some searches failed':''} · Coverage details`;coverage.append(coverageTitle,coverageBody);$('results').prepend(coverage);
  }
 
  }catch(e){$('error').textContent=e.message;}
@@ -131,7 +132,7 @@ async function runSearch({refresh=false}={}){
    if(!response.ok)throw new Error(body.error||'The flight search failed.');
   }
   liveReport=body;liveResults=body.results;render();
-  $('search-status').textContent=`${body.partial?'Partial search completed':'Search completed'} for ${prettyDate(query.date)}. ${displayed.length} displayed options across ${body.results.length} returned city groups. Skyscanner links use this travel date.`;
+  $('search-status').textContent=`${body.partial?'Partial search completed':'Search completed'} for ${prettyDate(query.date)}. ${displayed.length} results.`;
  }catch(e){$('search-status').textContent='Search did not complete. No live prices are displayed.';$('error').textContent=e.message;}
  finally{busy=false;$('download-report').disabled=false;$('refresh-prices').disabled=false;document.querySelector('.search-button').disabled=false;$('data-source').disabled=false;$('swap-route').disabled=false;}
 }
@@ -154,7 +155,7 @@ document.querySelector('.search-button').addEventListener('click',runSearch);
 $('search').addEventListener('submit',e=>{e.preventDefault();runSearch();});
 $('search').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();runSearch();}});
 function markPending(){
- $('search-status').textContent='Changes not applied yet. Click Explore fares to update results and Skyscanner links.';
+ $('search-status').textContent='Changes not applied yet. Click Search flights to update results and Skyscanner links.';
 }
 for(const id of ['search','trip','cabin']){
  $(id).addEventListener('input',markPending);
