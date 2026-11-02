@@ -2,8 +2,8 @@ import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {createFlightService,FlightError} from './lib/flights.js';
-const files={'/assets/singapore-banner.png':'assets/singapore-banner.png','/':'index.html','/app.js':'app.js','/style.css':'style.css','/search.js':'search.js'};
-const types={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',png:'image/png'};
+const files={'/assets/world-outline.svg':'assets/world-outline.svg','/assets/singapore-banner.png':'assets/singapore-banner.png','/':'index.html','/app.js':'app.js','/style.css':'style.css','/search.js':'search.js'};
+const types={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',png:'image/png',svg:'image/svg+xml'};
 export function createApp({service=createFlightService({dailyLimit:Number(process.env.SERPAPI_DAILY_LIMIT)||24})}={}){
  return http.createServer(async(req,res)=>{
   const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};

@@ -14,6 +14,9 @@ html = html.replace('href="/"', 'href="#"')
 for image in (root / 'assets').glob('*.png'):
     encoded = base64.b64encode(image.read_bytes()).decode('ascii')
     html = html.replace(f'src="/assets/{image.name}"', f'src="data:image/png;base64,{encoded}"')
+for image in (root / 'assets').glob('*.svg'):
+    encoded = base64.b64encode(image.read_bytes()).decode('ascii')
+    html = html.replace(f'/assets/{image.name}', f'data:image/svg+xml;base64,{encoded}')
 output = Path('/tmp/atlas-flight-demo-v4.html')
 output.write_text(html)
 print(f'Created {output}')
