@@ -29,6 +29,13 @@ test('downloads only a licensed thumbnail and writes local paths plus credits; f
  };
  try{
  const manifest=await fetchCityPhotos({request,outputDir,targets:[{code:'HND',city:'Tokyo'},{code:'SIN',city:'Singapore'}],log:()=>{}});
- assert.equal(calls,3);assert.deepEqual(Object.keys(manifest.photos),['HND']);assert.equal(manifest.photos.HND.src,'/assets/cities/HND.jpg');assert.equal(manifest.photos.HND.artist,'Example Photographer');assert.equal((await readFile(join(dir,'HND.jpg'))).length,64);assert.deepEqual(JSON.parse(await readFile(join(dir,'photos.json'),'utf8')),manifest);
+ assert.equal(manifest.status,'partial');assert.equal(manifest.photoCount,1);assert.equal(manifest.firstFailure.sourceStatus,503);assert.equal(manifest.firstFailure.stage,'search');assert.match(manifest.firstFailure.reason,/HTTP 503/);assert.equal(calls,3);assert.deepEqual(Object.keys(manifest.photos),['HND']);assert.equal(manifest.photos.HND.src,'/assets/cities/HND.jpg');assert.equal(manifest.photos.HND.artist,'Example Photographer');assert.equal((await readFile(join(dir,'HND.jpg'))).length,64);assert.deepEqual(JSON.parse(await readFile(join(dir,'photos.json'),'utf8')),manifest);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+test('all-failed deployments expose the first actual source failure and its HTTP status',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'atlas-photo-failure-'));
+ try{
+ const report=await fetchCityPhotos({request:async()=>new Response('blocked',{status:403}),outputDir:pathToFileURL(dir+'/'),targets:[{code:'HND',city:'Tokyo'}],log:()=>{}});
+ assert.equal(report.version,2);assert.equal(report.status,'failed');assert.equal(report.photoCount,0);assert.deepEqual(report.photos,{});assert.equal(report.firstFailure.sourceStatus,403);assert.match(report.firstFailure.reason,/HTTP 403/);assert.equal(report.firstFailure.stage,'search');
  }finally{await rm(dir,{recursive:true,force:true});}
 });
