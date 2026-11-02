@@ -23,8 +23,11 @@ const path=require('node:path');
   await page.locator('.card button').first().click();assert.match(await page.locator('dialog').innerText(),/Fixture Airline/);assert.equal(await page.locator('dialog a').count(),2);await page.click('#close');
   await page.fill('#date','2026-12-20');await page.click('.search-button');await page.waitForFunction(()=>document.getElementById('search-status').textContent.includes('Search completed'));assert.equal(calls,24);assert.match(await page.locator('.card strong').first().innerText(),/2,020/);assert.match(await page.locator('.card a').first().getAttribute('href'),/261220/);
   await page.click('.search-button');await page.waitForFunction(()=>document.getElementById('search-status').textContent.includes('Search completed'));assert.equal(calls,24);
+  await page.locator('.options-button').first().click();assert.equal(await page.locator('.card').count(),2);assert.equal(calls,24);assert.match(await page.locator('#search-status').innerText(),/No additional provider requests/);
+  await page.selectOption('#sort','highest');assert.match(await page.locator('.card strong').first().innerText(),/3,000/);
+  await page.selectOption('#sort','price');assert.match(await page.locator('.card strong').first().innerText(),/2,020/);
   await page.selectOption('#trip','roundtrip');await page.click('.search-button');assert.match(await page.locator('#error').innerText(),/supports One way/);assert.equal(await page.locator('.card').count(),0);assert.equal(calls,24);
-  await page.selectOption('#data-source','demo');assert.equal(await page.locator('.card').count(),12);assert.match(await page.locator('#mode-note').innerText(),/DEMO MODE/);
+  await page.selectOption('#data-source','demo');assert.equal(await page.locator('.card').count(),1);assert.match(await page.locator('#mode-note').innerText(),/DEMO MODE/);
   assert.deepEqual(errors,[]);console.log('PASS: browser-to-backend integration with simulated provider: no automatic charges; 12-city results, date updates, nonstop alternatives, caching, explicit live-only limits, and demo separation.');
  }finally{await browser.close();server.closeAllConnections();server.close();}
 })().catch(e=>{console.error(e);process.exit(1)});

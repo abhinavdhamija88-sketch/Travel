@@ -71,3 +71,14 @@ export function skyscannerUrl({origin,code,date,cabin,returnDate}){
  const url=new URL(`https://www.skyscanner.com/transport/flights/${origin.toLowerCase()}/${code.toLowerCase()}/${compact(date)}/${returnDate?compact(returnDate)+'/':''}`);
  url.search=new URLSearchParams({adultsv2:'1',cabinclass:cabins[cabin],rtn:returnDate?'1':'0',currency:'USD',outboundaltsenabled:'false',inboundaltsenabled:'false'}).toString();return url.href;
 }
+
+export function selectLiveFares(results,{destination='Asia',includeMixed=false,nonstop=false,budget=Infinity,sort='price'}={}){
+ const single=cities.some(c=>c.code===destination);
+ const fares=results.filter(f=>!single||f.code===destination).flatMap(group=>{
+  const options=(Array.isArray(group.options)?group.options:[group,...(group.nonstopAlternative?[group.nonstopAlternative]:[])])
+   .filter(f=>(includeMixed||!f.mixedCabin)&&(!nonstop||f.stops===0)&&f.price<=budget).sort((a,b)=>a.price-b.price);
+  if(single)return options.map(f=>({...f,optionCount:options.length}));
+  return options.length?[{...options[0],optionCount:options.length}]:[];
+ });
+ return fares.sort((a,b)=>sort==='highest'?b.price-a.price:sort==='duration'?a.hours-b.hours:a.price-b.price);
+}

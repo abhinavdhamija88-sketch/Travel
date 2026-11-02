@@ -41,3 +41,36 @@ test('bounds concurrent usage and sanitizes fetch failures',async()=>{
  let release;const gate=new Promise(r=>release=r);const service=createFlightService({apiKey:'secret',now:clock,request:async()=>{await gate;throw new Error('https://serpapi.com?api_key=secret');}});
  const pending=service.search(input);await assert.rejects(service.search(input),/Another flight search/);release();await assert.rejects(pending,e=>e.message.includes('could not be reached')&&!e.message.includes('secret'));
 });
+test('4475 best and 2269 other all-business offers remain available and cheapest wins',()=>{
+ const query=validateLiveQuery(input,clock()),city=cities.find(c=>c.code==='SGN');
+ const expensive=offer(4475,{connecting:true});expensive.flights[0].airline='Other Airline';
+ const cheap=offer(2269,{connecting:true});cheap.flights[0].airline='Delta';cheap.flights[1].airline='Korean Air';
+ const result=normalizeFlights({best_flights:[expensive],other_flights:[cheap]},query,city,clock().toISOString());
+ assert.equal(result.fare.price,2269);assert.equal(result.fare.options.length,2);assert.equal(result.fare.options[0].price,2269);assert.equal(result.diagnostics.returnedOffers,2);assert.equal(result.diagnostics.lowestReturnedPrice,2269);assert.equal(result.diagnostics.eligibleOffers,2);assert.equal(result.cabinExcluded,0);
+ assert.equal(providerParams(query,city).sort_by,'2');
+});
+test('mixed cabins are retained as explicitly flagged alternatives, never silently labeled business',()=>{
+ const query=validateLiveQuery(input,clock()),city=cities.find(c=>c.code==='SGN');
+ const mixed=offer(2269,{connecting:true});mixed.flights[1].travel_class='Economy';
+ const result=normalizeFlights({best_flights:[offer(4475)],other_flights:[mixed]},query,city,clock().toISOString());
+ assert.equal(result.fare.price,4475);assert.equal(result.fare.options[0].price,2269);assert.equal(result.fare.options[0].mixedCabin,true);assert.equal(result.diagnostics.lowestMixedPrice,2269);
+});
+test('merges duplicated itineraries retaining the lowest price and uses provider search URL safely',()=>{
+ const query=validateLiveQuery(input,clock()),city=cities.find(c=>c.code==='SGN');
+ const url='https://www.google.com/travel/flights?hl=en&tfs=test';
+ const result=normalizeFlights({best_flights:[offer(4475)],other_flights:[offer(2269)],search_metadata:{google_flights_url:url}},query,city,clock().toISOString());
+ assert.equal(result.fare.options.length,1);assert.equal(result.fare.price,2269);assert.equal(result.fare.googleUrl,url);
+ for(const bad of ['https://evil.example/travel/flights','javascript:alert(1)','https://www.google.com/travel/flights?api_key=secret']){
+ const f=normalizeFlights({other_flights:[offer(2269)],search_metadata:{google_flights_url:bad}},query,city,clock().toISOString()).fare;
+ assert.ok(f.googleUrl.startsWith('https://www.google.com/travel/flights?'));assert.ok(!f.googleUrl.includes('secret'));
+ }
+});
+test('BOS–ATL–ICN–SGN domestic premium plus international business remains eligible at 2269',()=>{
+ const query=validateLiveQuery({...input,date:'2026-12-21'},clock()),city=cities.find(c=>c.code==='SGN');
+ for(const domesticCabin of ['Business','First']){
+ const legs=[['BOS','ATL','Delta',domesticCabin],['ATL','ICN','Korean Air','Business'],['ICN','SGN','Korean Air','Business']].map(([from,to,airline,travel_class],i)=>({departure_airport:{id:from,time:`2026-12-${i?22:21} 10:00`},arrival_airport:{id:to,time:'2026-12-22 14:00'},airline,travel_class,flight_number:'Flight '+i}));
+ const expensive=offer(4475);expensive.flights[0].departure_airport.time='2026-12-21 10:00';
+ const result=normalizeFlights({best_flights:[expensive],other_flights:[{price:2269,total_duration:1650,flights:legs}]},query,city,clock().toISOString());
+ assert.equal(result.fare.price,2269);assert.equal(result.fare.stops,2);assert.equal(result.fare.legs[0].segments.length,3);assert.equal(result.fare.mixedCabin,false);assert.equal(result.fare.options.length,2);assert.equal(result.cabinExcluded,0);
+ }
+});
