@@ -28,7 +28,7 @@ test('caches identical requests without spending another provider request and da
 });
 test('reports partial coverage and never substitutes samples for failed cities',async()=>{
  const service=createFlightService({apiKey:'key',now:clock,request:async url=>{const code=url.searchParams.get('arrival_id');return code==='SGN'?response({best_flights:[offer(2100)]}):{ok:false,status:500};}});
- const result=await service.search({...input,destination:'Asia'});assert.equal(result.results.length,1);assert.equal(result.results[0].code,'SGN');assert.equal(result.partial,true);assert.equal(result.coverage.filter(c=>c.status==='error').length,11);
+ const result=await service.search({...input,destination:'Asia'});assert.equal(result.results.length,1);assert.equal(result.results[0].code,'SGN');assert.equal(result.partial,true);assert.equal(result.coverage.filter(c=>c.status==='error').length,cities.length-1);
 });
 test('handles missing credentials, malformed responses, provider errors and exhausted local budget safely',async()=>{
  await assert.rejects(createFlightService({apiKey:''}).search(input),/not connected/);

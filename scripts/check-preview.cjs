@@ -12,7 +12,7 @@ const assert=require('node:assert/strict');
    let view=page;
    if(sandboxed){await page.setContent('<iframe sandbox="allow-scripts allow-popups" style="width:100%;height:1000px"></iframe>');await page.locator('iframe').evaluate((el,source)=>el.srcdoc=source,html);view=page.frameLocator('iframe');}
    else await page.setContent(html);
-   await view.locator('.card').first().waitFor();assert.equal(await view.locator('.card').count(),12);
+   await view.locator('.card').first().waitFor();assert.equal(await view.locator('.card').count(),24);
    const before=await view.locator('.card strong').allTextContents();
    await view.locator('#origin').selectOption('BOS');await view.locator('#date').fill('2026-12-20');
    assert.match(await view.locator('#search-status').innerText(),/Changes not applied/);

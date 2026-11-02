@@ -1,7 +1,7 @@
 import {mkdir,writeFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {cities} from '../public/search.js';
-const searches={HND:'Tokyo Tower skyline',ICN:'Seoul skyline N Seoul Tower',TPE:'Taipei 101 skyline',HKG:'Hong Kong Victoria Harbour skyline',BKK:'Bangkok Wat Arun temple',SIN:'Singapore Marina Bay skyline',SGN:'Ho Chi Minh City skyline',KUL:'Kuala Lumpur Petronas Towers',DEL:'New Delhi India Gate',BOM:'Mumbai Gateway of India',MNL:'Manila skyline',DPS:'Bali Ulun Danu Beratan temple'};
+const searches={HND:'Tokyo Tower skyline',ICN:'Seoul skyline N Seoul Tower',TPE:'Taipei 101 skyline',HKG:'Hong Kong Victoria Harbour skyline',BKK:'Bangkok Wat Arun temple',SIN:'Singapore Marina Bay skyline',SGN:'Ho Chi Minh City skyline',KUL:'Kuala Lumpur Petronas Towers',DEL:'New Delhi India Gate',BOM:'Mumbai Gateway of India',MNL:'Manila skyline',DPS:'Bali Ulun Danu Beratan temple',BLR:'Bengaluru Vidhana Soudha',HYD:'Hyderabad Charminar',GOI:'Goa Panaji city',CCU:'Kolkata Howrah Bridge',CNX:'Chiang Mai Wat Chedi Luang',PEK:'Beijing skyline',PVG:'Shanghai Pudong skyline',CAN:'Guangzhou Canton Tower skyline',KIX:'Osaka skyline castle',CMB:'Colombo skyline',HAN:'Hanoi Hoan Kiem Lake',SZX:'Shenzhen skyline'};
 const plain=value=>String(value||'').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
 const licensePattern=/^(CC BY(?:-SA)? (?:2\.0|2\.5|3\.0|4\.0)|CC0(?: 1\.0)?|Public domain)$/i;
 export function wikimediaUrl(value,{source=false}={}){

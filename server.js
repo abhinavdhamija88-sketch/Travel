@@ -1,6 +1,7 @@
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
+import {cities} from './public/search.js';
 import {createFlightService,FlightError} from './lib/flights.js';
 const files={'/photo-credits.html':'photo-credits.html','/assets/world-outline.svg':'assets/world-outline.svg','/assets/singapore-banner.png':'assets/singapore-banner.png','/':'index.html','/app.js':'app.js','/style.css':'style.css','/search.js':'search.js'};
 const types={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',png:'image/png',svg:'image/svg+xml',jpg:'image/jpeg',webp:'image/webp',json:'application/json'};
@@ -20,7 +21,8 @@ export function createApp({service=createFlightService({dailyLimit:Number(proces
    }catch(e){return json(e instanceof FlightError?e.status:500,{error:e instanceof FlightError?e.message:'The flight search could not be completed.'});}
   }
   if(req.method!=='GET'&&req.method!=='HEAD')return json(405,{error:'Method not allowed.'});
-  const photoPath=/^\/assets\/cities\/(?:photos\.json|(?:HND|ICN|TPE|HKG|BKK|SIN|SGN|KUL|DEL|BOM|MNL|DPS)\.(?:jpg|png|webp))$/.test(path)?path.slice(1):null;
+  const photoMatch=/^\/assets\/cities\/([A-Z]{3})\.(jpg|png|webp)$/.exec(path);
+  const photoPath=path==='/assets/cities/photos.json'||photoMatch&&cities.some(c=>c.code===photoMatch[1])?path.slice(1):null;
   const file=files[path]||photoPath;if(!file){res.writeHead(404);return res.end('Not found');}
   try{
    const body=await readFile(new URL(`./public/${file}`,import.meta.url));

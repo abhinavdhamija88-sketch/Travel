@@ -1,6 +1,6 @@
 # Atlas flight explorer
 
-Flight discovery across 12 featured Asian cities, with two explicit modes:
+Flight discovery across 24 featured Asian cities, with two explicit modes:
 
 - **Google Flights · Live:** a Node backend uses SerpApi to retrieve one-way fares, retains returned itinerary options and compares the cheapest eligible offer per destination, and shows the actual route, airline, cabin, duration, and checked time. Requires SERPAPI_KEY on the server. This integration is implemented and tested with simulated responses; a real authenticated provider search remains unverified.
 - **Sample demo:** illustrative exact-date one-way, round-trip, and multi-city searches. No live availability is implied. Offline downloads always start in this mode.
@@ -33,7 +33,7 @@ Netlify account access, deployment, and a real provider search remain outstandin
 
 - No provider calls happen on page load. Clicking Explore fares runs the selected search.
 - API: POST `/api/flights`, with JSON origin, destination (region or city code), date, cabin, and trip="oneway". GET `/api/status` reports connection presence without exposing values.
-- Up to 12 destination requests, two concurrently. NYC uses a single grouped-airport request per destination. Identical provider requests are cached for 15 minutes, preserving the original checked time.
+- Up to 24 city requests, two concurrently. NYC uses a single grouped-airport request per destination. Identical provider requests are cached for 15 minutes, preserving the original checked time.
 - SERPAPI_DAILY_LIMIT defaults to 24 outbound requests per UTC day **per server process**. This is an application guard, not the provider's billing limit. Cache and request counters reset when the service restarts and aren't shared across replicas. Production or multi-user expansion needs persistent rate/quota management and access control. Do not scale out assuming this is a global cost cap.
 - Provider failures and incomplete city coverage are explicit; sample prices are never used as a live fallback. Empty results indicate no eligible fare among returned offers, not proof there are no flights.
 - Every returned segment must match the requested cabin (business accepts business or first). Unknown cabin offers are excluded; mixed cabins require an explicit opt-in and are labeled on every result. Best and other flight groups are compared with a price-sorted provider query. Single-city searches display all distinct returned eligible itineraries; regional searches show one lowest fare per city with an option to view alternatives. Mixed-cabin offers are retained separately and displayed only when the user enables Include mixed cabins. Unknown cabin offers remain excluded. Coverage notes report returned counts, raw lowest price before validation, and cabin exclusions. The nonstop filter uses eligible nonstop alternatives returned in the same response and spends no new requests.
@@ -64,7 +64,7 @@ Download search report exports only the normalized results, requested airports/d
 
 The swap button exchanges the US and Asian sides while preserving the exact selected city/region, date, cabin, and trip type. In Live mode it clears the previous displayed route and asks the user to Explore fares; swapping alone never spends provider credits.
 
-For Asia → BOS, NYC, or another listed US city, the client expands the same 12 Asian airports (or selected region subset) into separate source-airport queries, two concurrently. NYC is a grouped arrival query over JFK, EWR, and LGA; actual arrival airports are validated and shown on each itinerary and external link. Regional reverse results compare the lowest eligible returned fare per Asian origin. A specific Asian origin shows its individual returned flight options; View flight options switches the origin selector without additional API requests. Sample mode also supports reversed round-trip and multi-city itineraries. The provider coverage limitations remain unchanged.
+For Asia → BOS, NYC, or another listed US city, the client expands the same 24 Asian city groups (or selected region subset) into separate source-airport queries, two concurrently. NYC is a grouped arrival query over JFK, EWR, and LGA; actual arrival airports are validated and shown on each itinerary and external link. Regional reverse results compare the lowest eligible returned fare per Asian origin. A specific Asian origin shows its individual returned flight options; View flight options switches the origin selector without additional API requests. Sample mode also supports reversed round-trip and multi-city itineraries. The provider coverage limitations remain unchanged.
 
 ## Visual design
 
@@ -76,10 +76,18 @@ The approved faint world-map background is public-domain Natural Earth coastline
 
 `npm run build` runs `scripts/fetch-city-photos.mjs`. Netlify's build downloads 250px city thumbnails from Wikimedia Commons, checks supported Creative Commons/public-domain metadata and artist attribution, and writes `public/assets/cities/photos.json` plus local image files. No photo-service key is required. The generated directory is ignored in Git. The circle remains 52px on desktop and 36px on mobile. Photographs follow the Asian comparison city in either search direction.
 
-Candidates without an accepted reuse license, author, valid source/CDN host, suitable dimensions, or acceptable description are skipped. Failed downloads keep the existing illustrated fallback. Credits are displayed at `/photo-credits.html`, with source and license links and a circular-crop disclosure. This automated selection still needs visual review of the deployed photos; it does not establish that all 12 image downloads succeeded.
+Candidates without an accepted reuse license, author, valid source/CDN host, suitable dimensions, or acceptable description are skipped. Failed downloads keep the existing illustrated fallback. Credits are displayed at `/photo-credits.html`, with source and license links and a circular-crop disclosure. This automated selection still needs visual review of the deployed photos; it does not establish that all listed image downloads succeeded.
 
 The current managed development environment blocks Commons and its image CDN. Source research and live downloads could not be completed from this machine. License selection/download behavior was tested with simulated responses; browser checks used local fixture images to verify loading, crop size, city binding, reverse routes, and credits. Actual production image acquisition runs in the site's normal Netlify build and must be confirmed after deployment. The existing offline demo retains illustrated city fallbacks.
 
 Photo URL handling accepts Wikimedia's upload CDN and supported Commons thumbnail/redirect endpoints, upgrades official HTTP metadata links to HTTPS, and validates every redirect before following it. Standard 250px thumbnails are requested. Non-Wikimedia redirects remain rejected. Pipeline revision 3 records URL shapes if a candidate is still rejected; this preserves a concrete diagnostic path without relaxing license requirements.
 
 Pipeline revision 4 includes Wikimedia's actual `thumb.wikimedia.org` thumbnail CDN, identified in the deployment's URL diagnostics. Its accepted paths are restricted to `/wikipedia/commons/`, matching the upload CDN; lookalike domains remain rejected. The temporary `cirrussearch-too-busy-error` search response receives one retry after one second, then remains a reported failure if it persists.
+
+## Expanded city catalogue and flight rows
+
+The 24-city list comprises the original 12 plus Bengaluru, Hyderabad, Goa, Kolkata, Chiang Mai, Beijing, Shanghai, Guangzhou, Osaka, Colombo, Hanoi, and Shenzhen. Jakarta, Dhaka, Kathmandu, and additional regional expansion are not included. Regions contain 9 East Asian cities, 8 Southeast Asian cities, and 7 South Asian cities.
+
+City selections are airport groups, with no airport-specific UI choice: Tokyo HND/NRT, Osaka KIX/ITM, Beijing PEK/PKX, Shanghai PVG/SHA, and Goa GOI/GOX. Seoul remains ICN, Bangkok BKK, and Taipei TPE. Grouped airports are sent in a single provider request per city, in either direction, and the actual returned airports are retained in rows and external links. The canonical city ID stays separate from actual itinerary airports, preserving photos and regional grouping.
+
+Regional rows retain city/country headings. A specific-city view heads rows with the airline(s), shows local departure/arrival times and actual airport routes, and includes connecting airports when supplied. Sample mode does not invent departure/arrival times. The search form estimates the number of provider requests before submission (24 for all Asia); this is an estimate, not an account-wide remaining-credit tracker. Shared durable caching and account-wide quota enforcement are still not implemented. Tests for this expansion use simulated provider responses, so the implementation tests do not spend SerpApi search credits.

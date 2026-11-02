@@ -1,3 +1,4 @@
+const asianAirportGroups={HND:['HND','NRT'],KIX:['KIX','ITM'],PEK:['PEK','PKX'],PVG:['PVG','SHA'],GOI:['GOI','GOX']};
 export const cities = [
  ['Tokyo','Japan','HND','East Asia',35.7,139.7,2480,'Japan Airlines',0,14.2],
  ['Seoul','South Korea','ICN','East Asia',37.5,127,2260,'Korean Air',0,14.8],
@@ -10,8 +11,20 @@ export const cities = [
  ['Delhi','India','DEL','South Asia',28.6,77.2,1840,'Etihad Airways',1,19.2],
  ['Mumbai','India','BOM','South Asia',19.1,72.9,1920,'Etihad Airways',1,18.8],
  ['Manila','Philippines','MNL','Southeast Asia',14.6,121,2310,'Cathay Pacific',1,21.4],
- ['Bali','Indonesia','DPS','Southeast Asia',-8.7,115.2,2830,'Qatar Airways',1,27.3]
-].map(([city,country,code,region,lat,lon,base,airline,stops,hours])=>({city,country,code,region,lat,lon,base,airline,stops,hours}));
+ ['Bali','Indonesia','DPS','Southeast Asia',-8.7,115.2,2830,'Qatar Airways',1,27.3],
+ ['Bengaluru','India','BLR','South Asia',12.97,77.59,1950,'Qatar Airways',1,20.5],
+ ['Hyderabad','India','HYD','South Asia',17.38,78.49,1980,'Etihad Airways',1,20.2],
+ ['Goa','India','GOI','South Asia',15.40,73.83,2200,'Qatar Airways',1,21.5],
+ ['Kolkata','India','CCU','South Asia',22.57,88.36,2100,'Qatar Airways',1,22.0],
+ ['Chiang Mai','Thailand','CNX','Southeast Asia',18.79,98.98,2250,'Korean Air',1,24.0],
+ ['Beijing','China','PEK','East Asia',39.90,116.40,2300,'Air China',1,18.5],
+ ['Shanghai','China','PVG','East Asia',31.23,121.47,2400,'China Eastern',1,19.0],
+ ['Guangzhou','China','CAN','East Asia',23.13,113.26,2380,'China Southern',1,21.0],
+ ['Osaka','Japan','KIX','East Asia',34.69,135.50,2500,'Japan Airlines',1,19.0],
+ ['Colombo','Sri Lanka','CMB','South Asia',6.93,79.86,2050,'Qatar Airways',1,23.5],
+ ['Hanoi','Vietnam','HAN','Southeast Asia',21.03,105.83,2150,'Korean Air',1,22.5],
+ ['Shenzhen','China','SZX','East Asia',22.54,114.05,2350,'Air China',1,22.0]
+].map(([city,country,code,region,lat,lon,base,airline,stops,hours])=>({city,country,code,region,lat,lon,base,airline,stops,hours,airports:asianAirportGroups[code]||[code]}));
 export const origins = [
  {code:'NYC',label:'New York City · NYC (JFK, Newark, LaGuardia)',airports:['JFK','EWR','LGA']},
  {code:'CLT',label:'Charlotte · CLT'}, {code:'MIA',label:'Miami · MIA'},
@@ -19,6 +32,7 @@ export const origins = [
  {code:'IAD',label:'Washington Dulles · IAD'}, {code:'BOS',label:'Boston · BOS'},
  {code:'RDU',label:'Raleigh-Durham · RDU'}
 ];
+export function airportCodes(code){return cities.find(c=>c.code===code)?.airports||origins.find(o=>o.code===code)?.airports||[code];}
 const offsets={JFK:-140,EWR:-80,LGA:90,CLT:130,MIA:160,ORD:-20,PHL:70,IAD:40,BOS:0,RDU:150};
 const cabins={business:'business',premium:'premiumeconomy',economy:'economy'};
 const regions=['Asia','East Asia','Southeast Asia','South Asia'];
@@ -41,9 +55,9 @@ export function validDate(value){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(value||''))return false;
  const d=new Date(value+'T00:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===value;
 }
-function airport(code){return Object.hasOwn(offsets,code)||cities.some(c=>c.code===code);}
+function airport(code){return Object.hasOwn(offsets,code)||cities.some(c=>c.airports.includes(code));}
 function quote(origin,code,date,cabin){
- const target=cities.find(c=>c.code===code),source=cities.find(c=>c.code===origin);
+ const target=cities.find(c=>c.airports.includes(code)),source=cities.find(c=>c.airports.includes(origin));
  const base=target?.base||source?.base||700;
  const intra=Boolean(source&&target);
  const n=Math.floor(Date.parse(date)/86400000);
@@ -64,16 +78,16 @@ export function searchFares({origin='NYC',destination='Asia',date,returnDate,tri
   let previous=date;
   for(const leg of onward){if(!airport(leg.code)&&leg.code!=='HOME')throw new Error('Choose a destination for every flight.');if(!validDate(leg.date)||leg.date<previous)throw new Error('Flight dates must be in order.');previous=leg.date;}
  }
- const airports=plan.usCode==='NYC'?['JFK','EWR','LGA']:[plan.usCode];
+ const airports=airportCodes(plan.usCode);
  const candidates=plan.targets;
  const results=candidates.flatMap(c=>{
- const options=airports.flatMap(usAirport=>{
-  const departure=plan.reverse?c.code:usAirport,arrival=plan.reverse?usAirport:c.code;
+ const options=airports.flatMap(usAirport=>c.airports.flatMap(asianAirport=>{
+  const departure=plan.reverse?asianAirport:usAirport,arrival=plan.reverse?usAirport:asianAirport;
   const legs=[quote(departure,arrival,date,cabin)];
   if(trip==='roundtrip')legs.push(quote(arrival,departure,returnDate,cabin));
-  if(trip==='multicity')for(const next of onward){const from=legs.at(-1).code,to=next.code==='HOME'?departure:next.code;if(from===to)return [];legs.push(quote(from,to,next.date,cabin));}
+  if(trip==='multicity')for(const next of onward){const from=legs.at(-1).code,choices=next.code==='HOME'?[departure]:airportCodes(next.code);const nextLeg=choices.filter(to=>to!==from).map(to=>quote(from,to,next.date,cabin)).sort((a,b)=>a.price-b.price)[0];if(!nextLeg)return [];legs.push(nextLeg);}
   return [{...c,origin:departure,code:arrival,comparisonCode:c.code,reverse:plan.reverse,date,cabin,trip,returnDate,legs,price:legs.reduce((n,l)=>n+l.price,0),hours:legs.reduce((n,l)=>n+l.hours,0),stops:legs.reduce((n,l)=>n+l.stops,0)}];
- }).filter(f=>f.price<=budget&&(!nonstop||f.legs.every(l=>l.stops===0)));
+ })).filter(f=>f.price<=budget&&(!nonstop||f.legs.every(l=>l.stops===0)));
  options.sort((a,b)=>a.price-b.price);return options.length?[options[0]]:[];
  });
  return results.sort((a,b)=>sort==='highest'?b.price-a.price:sort==='duration'?a.hours-b.hours:a.price-b.price);
