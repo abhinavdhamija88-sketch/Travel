@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {cities} from './public/search.js';
 import {createFlightService,FlightError} from './lib/flights.js';
-const files={'/photo-credits.html':'photo-credits.html','/assets/world-outline.svg':'assets/world-outline.svg','/assets/singapore-banner.png':'assets/singapore-banner.png','/':'index.html','/app.js':'app.js','/style.css':'style.css','/search.js':'search.js'};
+const files={'/assets/banners/mountain.jpg':'assets/banners/mountain.jpg','/assets/banners/coastline.jpg':'assets/banners/coastline.jpg','/photo-credits.html':'photo-credits.html','/assets/world-outline.svg':'assets/world-outline.svg','/assets/singapore-banner.png':'assets/singapore-banner.png','/':'index.html','/app.js':'app.js','/style.css':'style.css','/search.js':'search.js'};
 const types={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',png:'image/png',svg:'image/svg+xml',jpg:'image/jpeg',webp:'image/webp',json:'application/json'};
 export function createApp({service=createFlightService({dailyLimit:Number(process.env.SERPAPI_DAILY_LIMIT)||24})}={}){
  return http.createServer(async(req,res)=>{

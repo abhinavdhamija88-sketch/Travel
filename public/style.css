@@ -35,3 +35,6 @@ nav a.active{text-decoration:underline;text-decoration-color:var(--burnt-orange)
 .card-bottom>button{color:var(--burnt-orange)}
 .brand{display:inline-flex;align-items:center;gap:10px}.brand-word{display:inline-block}.brand-window{width:27px;height:36px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:4;stroke-linejoin:round}.brand-window .window-fill{fill:currentColor;stroke:none}footer .brand-window{width:21px;height:28px}
 @media(max-width:760px){header .brand-window{width:23px;height:31px}}
+
+/* Keep the snowy peaks visible within the existing banner dimensions. */
+.hero-banner>img{object-position:center 70%}
