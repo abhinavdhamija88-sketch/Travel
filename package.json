@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --use-env-proxy --env-file-if-exists=.env server.js",
     "dev": "node --use-env-proxy --env-file-if-exists=.env --watch server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "node --use-env-proxy scripts/fetch-city-photos.mjs"
   },
   "engines": {
     "node": ">=24"

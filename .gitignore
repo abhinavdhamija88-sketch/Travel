@@ -3,3 +3,6 @@
 !.env.example
 node_modules/
 *.log
+
+# License-checked thumbnails and their manifest are produced at build time.
+/public/assets/cities/
