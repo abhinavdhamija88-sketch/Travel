@@ -1,0 +1,14 @@
+{
+  "name": "atlas-flight-explorer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --use-env-proxy --env-file-if-exists=.env server.js",
+    "dev": "node --use-env-proxy --env-file-if-exists=.env --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

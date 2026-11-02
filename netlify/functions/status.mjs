@@ -1,0 +1,1 @@
+export default async()=>new Response(JSON.stringify({configured:Boolean(process.env.SERPAPI_KEY),liveTrips:['oneway'],maxDestinationsPerRequest:1}),{headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
