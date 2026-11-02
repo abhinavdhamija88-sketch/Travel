@@ -57,3 +57,18 @@ test('build downloads a Commons-served thumbnail using a standard thumbnail widt
  const report=await fetchCityPhotos({request,outputDir:pathToFileURL(dir+'/'),targets:[{code:'HND',city:'Tokyo'}],log:()=>{}});assert.equal(report.status,'complete');assert.equal(report.photoCount,1);assert.equal(calls,3);
  }finally{await rm(dir,{recursive:true,force:true});}
 });
+test('accepts the actual thumb.wikimedia.org URL reported by the deployed Tokyo search',()=>{
+ const url='https://thumb.wikimedia.org/wikipedia/commons/thumb/9/98/Tokyo_skyline_seen_from_Tokyo_Skytree.jpg/250px-Tokyo_skyline_seen_from_Tokyo_Skytree.jpg';
+ const p=structuredClone(page);p.imageinfo[0].thumburl=url;p.imageinfo[0].descriptionurl='https://commons.wikimedia.org/wiki/File:Tokyo_skyline_seen_from_Tokyo_Skytree.jpg';
+ assert.equal(selectPhoto(payload(p)).imageUrl,url);
+ assert.equal(wikimediaUrl('https://thumb.wikimedia.org.evil.example/wikipedia/commons/photo.jpg'),null);
+ assert.equal(wikimediaUrl('https://thumb.wikimedia.org/w/api.php'),null);
+});
+test('downloads from the reported thumbnail CDN and retries the observed temporary busy search exactly once',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'atlas-thumb-cdn-'));const p=structuredClone(page);p.imageinfo[0].thumburl='https://thumb.wikimedia.org/wikipedia/commons/thumb/9/98/Tokyo_skyline_seen_from_Tokyo_Skytree.jpg/250px-Tokyo_skyline_seen_from_Tokyo_Skytree.jpg';let searches=0,images=0,pauses=0;
+ try{
+ const request=async value=>{const url=new URL(value);if(url.pathname==='/w/api.php'){searches++;return new Response(JSON.stringify(searches===1?{error:{code:'cirrussearch-too-busy-error',info:'Search is currently too busy.'}}:payload(p)));}assert.equal(url.hostname,'thumb.wikimedia.org');images++;return new Response(Buffer.alloc(64,0xff),{headers:{'Content-Type':'image/jpeg'}});};
+ const report=await fetchCityPhotos({request,outputDir:pathToFileURL(dir+'/'),targets:[{code:'HND',city:'Tokyo'}],pause:async ms=>{assert.equal(ms,1000);pauses++;},log:()=>{}});
+ assert.equal(report.pipelineRevision,4);assert.equal(report.status,'complete');assert.equal(report.photoCount,1);assert.equal(searches,2);assert.equal(images,1);assert.equal(pauses,1);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});

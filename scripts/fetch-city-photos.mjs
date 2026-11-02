@@ -11,7 +11,7 @@ export function wikimediaUrl(value,{source=false}={}){
   if(!['https:','http:'].includes(url.protocol)||url.username||url.password)return null;
   url.protocol='https:';if(url.port)return null;
   if(source)return url.hostname==='commons.wikimedia.org'&&(url.pathname.startsWith('/wiki/')||url.pathname==='/w/index.php')?url:null;
-  const upload=url.hostname==='upload.wikimedia.org'&&url.pathname.startsWith('/wikipedia/commons/');
+  const upload=['upload.wikimedia.org','thumb.wikimedia.org'].includes(url.hostname)&&url.pathname.startsWith('/wikipedia/commons/');
   const commons=url.hostname==='commons.wikimedia.org'&&(url.pathname==='/w/thumb.php'||url.pathname.startsWith('/wiki/Special:Redirect/file/')||url.pathname.startsWith('/wiki/Special:FilePath/'));
   return upload||commons?url:null;
  }catch{return null;}
@@ -61,18 +61,23 @@ export function selectPhoto(payload,rejected={},urlIssues=[]){
  }
  return null;
 }
-export async function fetchCityPhotos({request=globalThis.fetch,outputDir=new URL('../public/assets/cities/',import.meta.url),targets=cities,log=console.log}={}){
- await mkdir(outputDir,{recursive:true});const manifest={version:2,pipelineRevision:3,createdAt:new Date().toISOString(),requestedPhotoCount:targets.length,photoCount:0,status:'pending',failureSummary:{},firstFailure:null,photos:{},failures:[]};
+export async function fetchCityPhotos({request=globalThis.fetch,outputDir=new URL('../public/assets/cities/',import.meta.url),targets=cities,log=console.log,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
+ await mkdir(outputDir,{recursive:true});const manifest={version:2,pipelineRevision:4,createdAt:new Date().toISOString(),requestedPhotoCount:targets.length,photoCount:0,status:'pending',failureSummary:{},firstFailure:null,photos:{},failures:[]};
  for(const city of targets){
   let stage='search',sourceStatus=null,imageStatus=null,candidateCount=0,rejectedCandidates={},urlIssues=[];
   try{
    const url=new URL('https://commons.wikimedia.org/w/api.php');
    url.search=new URLSearchParams({action:'query',format:'json',generator:'search',gsrsearch:searches[city.code]+' filetype:bitmap -drawing -map -logo',gsrnamespace:'6',gsrlimit:'15',prop:'imageinfo',iiprop:'url|mime|size|extmetadata',iiurlwidth:'250'}).toString();
    const headers={'User-Agent':'AtlasFlightCityPhotos/1.0 (https://github.com/abhinavdhamija88-sketch/Travel)'};
-   const response=await request(url,{headers,signal:AbortSignal.timeout(15000)});
-   sourceStatus=response.status;
-   if(!response.ok)throw new Error('Wikimedia search returned HTTP '+response.status);
-   const data=await response.json();
+   let data;
+   for(let attempt=0;attempt<2;attempt++){
+    const response=await request(url,{headers,signal:AbortSignal.timeout(15000)});
+    sourceStatus=response.status;
+    if(!response.ok)throw new Error('Wikimedia search returned HTTP '+response.status);
+    data=await response.json();
+    if(data.error?.code==='cirrussearch-too-busy-error'&&attempt===0){await pause(1000);continue;}
+    break;
+   }
    if(data.error)throw new Error('Wikimedia search error: '+plain(data.error.code||'unknown')+' — '+plain(data.error.info||'').slice(0,180));
    candidateCount=Object.keys(data.query?.pages||{}).length;
    stage='license_selection';
