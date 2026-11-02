@@ -4,7 +4,33 @@ import {cities} from '../public/search.js';
 const searches={HND:'Tokyo Tower skyline',ICN:'Seoul skyline N Seoul Tower',TPE:'Taipei 101 skyline',HKG:'Hong Kong Victoria Harbour skyline',BKK:'Bangkok Wat Arun temple',SIN:'Singapore Marina Bay skyline',SGN:'Ho Chi Minh City skyline',KUL:'Kuala Lumpur Petronas Towers',DEL:'New Delhi India Gate',BOM:'Mumbai Gateway of India',MNL:'Manila skyline',DPS:'Bali Ulun Danu Beratan temple'};
 const plain=value=>String(value||'').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
 const licensePattern=/^(CC BY(?:-SA)? (?:2\.0|2\.5|3\.0|4\.0)|CC0(?: 1\.0)?|Public domain)$/i;
-export function selectPhoto(payload,rejected={}){
+export function wikimediaUrl(value,{source=false}={}){
+ try{
+  if(typeof value!=='string'||!value)return null;
+  const url=new URL(value,'https://commons.wikimedia.org');
+  if(!['https:','http:'].includes(url.protocol)||url.username||url.password)return null;
+  url.protocol='https:';if(url.port)return null;
+  if(source)return url.hostname==='commons.wikimedia.org'&&(url.pathname.startsWith('/wiki/')||url.pathname==='/w/index.php')?url:null;
+  const upload=url.hostname==='upload.wikimedia.org'&&url.pathname.startsWith('/wikipedia/commons/');
+  const commons=url.hostname==='commons.wikimedia.org'&&(url.pathname==='/w/thumb.php'||url.pathname.startsWith('/wiki/Special:Redirect/file/')||url.pathname.startsWith('/wiki/Special:FilePath/'));
+  return upload||commons?url:null;
+ }catch{return null;}
+}
+export async function fetchThumbnail(value,{request=globalThis.fetch,headers={}}={}){
+ let url=wikimediaUrl(value);
+ for(let hop=0;hop<4;hop++){
+  if(!url)throw new Error('Image URL is not a supported Wikimedia image endpoint.');
+  const response=await request(url.href,{headers,signal:AbortSignal.timeout(15000),redirect:'manual'});
+  if(response.status>=300&&response.status<400){
+   const location=response.headers.get('location');
+   if(!location)throw new Error('Image redirect has no destination.');
+   url=wikimediaUrl(new URL(location,url).href);
+   if(!url)throw new Error('Image redirect points outside the supported Wikimedia hosts.');
+  }else return response;
+ }
+ throw new Error('Too many Wikimedia image redirects.');
+}
+export function selectPhoto(payload,rejected={},urlIssues=[]){
  const reject=reason=>{rejected[reason]=(rejected[reason]||0)+1;};
  const pages=Object.values(payload?.query?.pages||{}).sort((a,b)=>(a.index||0)-(b.index||0));
  for(const page of pages){
@@ -19,8 +45,12 @@ export function selectPhoto(payload,rejected={}){
   if(/AI.generated|artificial intelligence|midjourney|stable diffusion|dall.e|painting|watercolou?r|illustration|rendering/i.test(page.title+' '+description)){reject('not_a_verified_photograph');continue;}
   if(info.width<info.height||info.width<300||info.height<150){reject('unsuitable_dimensions');continue;}
   try{
-   const image=new URL(info.thumburl||''),source=new URL(info.descriptionurl||'');
-   if(image.protocol!=='https:'||image.hostname!=='upload.wikimedia.org'||source.protocol!=='https:'||source.hostname!=='commons.wikimedia.org'){reject('untrusted_image_or_source_url');continue;}
+   const image=wikimediaUrl(info.thumburl),source=wikimediaUrl(info.descriptionurl,{source:true});
+   if(!image||!source){
+    reject(!image?'unsupported_image_url':'unsupported_source_url');
+    if(urlIssues.length<2){const shape=value=>{try{const u=new URL(value,'https://commons.wikimedia.org');return {protocol:u.protocol,host:u.hostname,path:u.pathname.slice(0,120)};}catch{return null;}};urlIssues.push({image:shape(info.thumburl),source:shape(info.descriptionurl)});}
+    continue;
+   }
    let licenseUrl=meta.LicenseUrl?.value||'';
    if(licenseUrl){const u=new URL(licenseUrl);if(!['http:','https:'].includes(u.protocol)||u.hostname!=='creativecommons.org'){reject('untrusted_license_url');continue;}u.protocol='https:';licenseUrl=u.href;}
    else if(/^Public domain$/i.test(license))licenseUrl='https://commons.wikimedia.org/wiki/Commons:Public_domain';
@@ -32,12 +62,12 @@ export function selectPhoto(payload,rejected={}){
  return null;
 }
 export async function fetchCityPhotos({request=globalThis.fetch,outputDir=new URL('../public/assets/cities/',import.meta.url),targets=cities,log=console.log}={}){
- await mkdir(outputDir,{recursive:true});const manifest={version:2,createdAt:new Date().toISOString(),requestedPhotoCount:targets.length,photoCount:0,status:'pending',failureSummary:{},firstFailure:null,photos:{},failures:[]};
+ await mkdir(outputDir,{recursive:true});const manifest={version:2,pipelineRevision:3,createdAt:new Date().toISOString(),requestedPhotoCount:targets.length,photoCount:0,status:'pending',failureSummary:{},firstFailure:null,photos:{},failures:[]};
  for(const city of targets){
-  let stage='search',sourceStatus=null,imageStatus=null,candidateCount=0,rejectedCandidates={};
+  let stage='search',sourceStatus=null,imageStatus=null,candidateCount=0,rejectedCandidates={},urlIssues=[];
   try{
    const url=new URL('https://commons.wikimedia.org/w/api.php');
-   url.search=new URLSearchParams({action:'query',format:'json',generator:'search',gsrsearch:searches[city.code]+' filetype:bitmap -drawing -map -logo',gsrnamespace:'6',gsrlimit:'15',prop:'imageinfo',iiprop:'url|mime|size|extmetadata',iiurlwidth:'160'}).toString();
+   url.search=new URLSearchParams({action:'query',format:'json',generator:'search',gsrsearch:searches[city.code]+' filetype:bitmap -drawing -map -logo',gsrnamespace:'6',gsrlimit:'15',prop:'imageinfo',iiprop:'url|mime|size|extmetadata',iiurlwidth:'250'}).toString();
    const headers={'User-Agent':'AtlasFlightCityPhotos/1.0 (https://github.com/abhinavdhamija88-sketch/Travel)'};
    const response=await request(url,{headers,signal:AbortSignal.timeout(15000)});
    sourceStatus=response.status;
@@ -46,9 +76,9 @@ export async function fetchCityPhotos({request=globalThis.fetch,outputDir=new UR
    if(data.error)throw new Error('Wikimedia search error: '+plain(data.error.code||'unknown')+' — '+plain(data.error.info||'').slice(0,180));
    candidateCount=Object.keys(data.query?.pages||{}).length;
    stage='license_selection';
-   const photo=selectPhoto(data,rejectedCandidates);if(!photo)throw new Error(candidateCount?'All '+candidateCount+' photo candidates were rejected; see rejectedCandidates.':'Wikimedia returned no photo candidates.');
+   const photo=selectPhoto(data,rejectedCandidates,urlIssues);if(!photo)throw new Error(candidateCount?'All '+candidateCount+' photo candidates were rejected; see rejectedCandidates.':'Wikimedia returned no photo candidates.');
    stage='image_download';
-   const image=await request(photo.imageUrl,{headers,signal:AbortSignal.timeout(15000),redirect:'error'});
+   const image=await fetchThumbnail(photo.imageUrl,{request,headers});
    imageStatus=image.status;
    if(!image.ok)throw new Error('Image CDN returned HTTP '+image.status);
    if(!image.headers.get('content-type')?.split(';')[0].startsWith('image/'))throw new Error('Image CDN returned a non-image content type.');
@@ -66,7 +96,7 @@ export async function fetchCityPhotos({request=globalThis.fetch,outputDir=new UR
    log('City photo ready: '+city.city);
   }catch(error){
    const reason=plain(error.message||'Unknown download error').slice(0,300);
-   const failure={code:city.code,city:city.city,stage,reason,sourceStatus,imageStatus,candidateCount,rejectedCandidates};
+   const failure={code:city.code,city:city.city,stage,reason,sourceStatus,imageStatus,candidateCount,rejectedCandidates,urlIssues};
    if(error.cause?.code)failure.networkCode=String(error.cause.code).slice(0,80);
    manifest.failures.push(failure);manifest.firstFailure ||= failure;
    const summary=stage+': '+reason;manifest.failureSummary[summary]=(manifest.failureSummary[summary]||0)+1;
